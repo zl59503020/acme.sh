@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-WIKI="https://github.com/Neilpang/acme.sh/wiki/How-to-use-Azure-DNS"
+WIKI="https://github.com/acmesh-official/acme.sh/wiki/How-to-use-Azure-DNS"
 
 ########  Public functions #####################
 
@@ -172,7 +172,7 @@ dns_azure_rm() {
   _azure_rest GET "$acmeRecordURI" "" "$accesstoken"
   timestamp="$(_time)"
   if [ "$_code" = "200" ]; then
-    vlist="$(echo "$response" | _egrep_o "\"value\"\\s*:\\s*\\[\\s*\"[^\"]*\"\\s*]" | cut -d : -f 2 | tr -d "[]\"" | grep -v "$txtvalue")"
+    vlist="$(echo "$response" | _egrep_o "\"value\"\\s*:\\s*\\[\\s*\"[^\"]*\"\\s*]" | cut -d : -f 2 | tr -d "[]\"" | grep -v -- "$txtvalue")"
     values=""
     comma=""
     for v in $vlist; do
@@ -220,7 +220,7 @@ _azure_rest() {
     export _H2="accept: application/json"
     export _H3="Content-Type: application/json"
     # clear headers from previous request to avoid getting wrong http code on timeouts
-    :>"$HTTP_HEADER"
+    : >"$HTTP_HEADER"
     _debug "$ep"
     if [ "$m" != "GET" ]; then
       _secure_debug2 "data $data"
@@ -316,8 +316,8 @@ _get_root() {
   ## (ZoneListResult with  continuation token for the next page of results)
   ## Per https://docs.microsoft.com/en-us/azure/azure-subscription-service-limits#dns-limits you are limited to 100 Zone/subscriptions anyways
   ##
-  _azure_rest GET "https://management.azure.com/subscriptions/$subscriptionId/providers/Microsoft.Network/dnszones?api-version=2017-09-01" "" "$accesstoken"
-  # Find matching domain name is Json response
+  _azure_rest GET "https://management.azure.com/subscriptions/$subscriptionId/providers/Microsoft.Network/dnszones?\$top=500&api-version=2017-09-01" "" "$accesstoken"
+  # Find matching domain name in Json response
   while true; do
     h=$(printf "%s" "$domain" | cut -d . -f $i-100)
     _debug2 "Checking domain: $h"
@@ -328,7 +328,7 @@ _get_root() {
     fi
 
     if _contains "$response" "\"name\":\"$h\"" >/dev/null; then
-      _domain_id=$(echo "$response" | _egrep_o "\\{\"id\":\"[^\"]*$h\"" | head -n 1 | cut -d : -f 2 | tr -d \")
+      _domain_id=$(echo "$response" | _egrep_o "\\{\"id\":\"[^\"]*\\/$h\"" | head -n 1 | cut -d : -f 2 | tr -d \")
       if [ "$_domain_id" ]; then
         if [ "$i" = 1 ]; then
           #create the record at the domain apex (@) if only the domain name was provided as --domain-alias
